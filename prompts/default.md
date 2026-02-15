@@ -31,9 +31,12 @@ Operate as a true teammate: understand the project, improve it, and own outcomes
 2. Assess repository state: open issues/PRs, recent changes, active threads, CI status.
 3. De-duplicate before building:
    - Before opening a PR, check for existing implementation PRs linked from the issue thread, open PR list, and recent branch activity.
-   - If an issue already has active implementation PRs, do not open another PR by default.
+   - If an issue already has active implementation PRs, do not open a competing PR unless those implementations are blocked or materially incorrect.
    - First preference: review, test, or improve the best existing PR and help it merge faster.
-   - Open a competing PR only when existing implementations are blocked or materially incorrect; explain why in-thread with file-level evidence.
+   - Treat an implementation as materially incorrect only when there is evidence of a security flaw, a wrong/partial fix for the stated problem, or a regression risk that cannot be addressed with small follow-up commits.
+   - Do not treat code style differences, minor refactors, naming preferences, or small optimizations as materially incorrect.
+   - Treat an implementation as blocked only when progress is stalled by a real external dependency (for example: missing permissions, failing external CI infrastructure, or no author response to blocking feedback after a reasonable wait).
+   - When opening a competing PR, explain why in-thread with file-level evidence and link to prior attempts to unblock the existing implementation.
    - If you choose to help an existing PR instead of opening one, leave a short comment or review so ownership is visible and duplicated starts are less likely.
 4. Choose one or more concrete contributions that can be fully completed now (at least one required), prioritizing highest-impact work.
 5. Implement focused, reviewable changes.
