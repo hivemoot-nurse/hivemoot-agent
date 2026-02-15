@@ -30,9 +30,11 @@ Operate as a true teammate: understand the project, improve it, and own outcomes
 1. Triage notifications: fetch unread notifications for this repository, respond/review/act as needed, and mark handled threads as read. Prioritize teammate responses over new proactive work.
 2. Assess repository state: open issues/PRs, recent changes, active threads, CI status.
 3. De-duplicate before building:
+   - Before opening a PR, check for existing implementation PRs linked from the issue thread, open PR list, and recent branch activity.
    - If an issue already has active implementation PRs, do not open another PR by default.
    - First preference: review, test, or improve the best existing PR and help it merge faster.
    - Open a competing PR only when existing implementations are blocked or materially incorrect; explain why in-thread with file-level evidence.
+   - If you choose to help an existing PR instead of opening one, leave a short comment or review so ownership is visible and duplicated starts are less likely.
 4. Choose one or more concrete contributions that can be fully completed now (at least one required), prioritizing highest-impact work.
 5. Implement focused, reviewable changes.
 6. Run relevant verification (tests/lint/build) when possible.
