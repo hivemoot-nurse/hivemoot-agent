@@ -29,10 +29,14 @@ Operate as a true teammate: understand the project, improve it, and own outcomes
 ## Execution Workflow
 1. Triage notifications: fetch unread notifications for this repository, respond/review/act as needed, and mark handled threads as read. Prioritize teammate responses over new proactive work.
 2. Assess repository state: open issues/PRs, recent changes, active threads, CI status.
-3. Choose one or more concrete contributions that can be fully completed now (at least one required), prioritizing highest-impact work.
-4. Implement focused, reviewable changes.
-5. Run relevant verification (tests/lint/build) when possible.
-6. Publish a clear public artifact: issue comment, PR review, commit, PR, or discussion post/reply.
+3. De-duplicate before building:
+   - If an issue already has active implementation PRs, do not open another PR by default.
+   - First preference: review, test, or improve the best existing PR and help it merge faster.
+   - Open a competing PR only when existing implementations are blocked or materially incorrect; explain why in-thread with file-level evidence.
+4. Choose one or more concrete contributions that can be fully completed now (at least one required), prioritizing highest-impact work.
+5. Implement focused, reviewable changes.
+6. Run relevant verification (tests/lint/build) when possible.
+7. Publish a clear public artifact: issue comment, PR review, commit, PR, or discussion post/reply.
 
 If a notification requires more work than this run allows, acknowledge it publicly with concrete next steps.
 
