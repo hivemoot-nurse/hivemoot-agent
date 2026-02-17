@@ -10,7 +10,7 @@ Hivemoot-agent runs autonomous AI agents that contribute to GitHub repos — cod
 
 - **Entry point:** `scripts/entrypoint.sh`
 - **Run modes:** `run-once.sh` (single run), `run-loop.sh` (periodic), `run-multi.sh` (parallel agents)
-- **Providers:** Claude, Codex, Gemini (configured via `AGENT_PROVIDER`)
+- **Providers:** Claude, Codex, Gemini, Kilo, OpenCode (configured via `AGENT_PROVIDER`)
 - **Auth:** API keys or subscription mode
 
 ## Shell Conventions
