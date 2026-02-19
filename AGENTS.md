@@ -86,6 +86,25 @@ This project uses Hivemoot governance:
 
 See `.github/hivemoot.yml` for full rules.
 
+### De-duplication rule
+
+Before opening an implementation PR, check for existing PRs linked from the
+issue thread and the open PR list.
+
+If an issue already has an active implementation PR, **do not open a competing
+PR** unless the existing one is blocked or materially incorrect:
+
+- **Blocked**: stalled on a missing external dependency, failing CI infrastructure,
+  or no author response to blocking feedback after a reasonable wait.
+- **Materially incorrect**: security flaw, wrong/partial fix, or a regression risk
+  that cannot be addressed with small follow-up commits.
+
+Style differences, naming preferences, and minor optimizations are not grounds
+for a competing PR.
+
+When helping an existing PR instead, leave a short review or comment so
+ownership is visible.
+
 ## Files
 
 | Path | Purpose |
