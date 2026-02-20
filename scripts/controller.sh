@@ -211,7 +211,6 @@ spawn_worker() {
     -e AGENT_GIT_EMAIL="${agent_id}@${email_domain}"
     -e HIVEMOOT_BUZZ_ROLE="${agent_id}"
     -e HIVEMOOT_CLI_UPDATE=skip
-    -e FRESH_CLONE="${FRESH_CLONE:-1}"
   )
 
   if [ -n "$extra_prompt" ]; then
