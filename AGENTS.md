@@ -11,7 +11,7 @@ reviews, discussions, and PRs. It's the runtime component of the Hivemoot system
 ## Architecture
 
 - **Entry point:** `scripts/entrypoint.sh`
-- **Run modes:** `run-once.sh` (single run), `run-loop.sh` (periodic), `run-multi.sh` (parallel agents)
+- **Run modes:** `run-multi.sh` (one-shot, all agents in parallel), `run-loop.sh` (periodic schedule), `run-once.sh` (per-agent execution unit)
 - **Providers:** Claude, Codex, Gemini, Kilo, OpenCode (configured via `AGENT_PROVIDER`)
 - **Auth:** API keys or subscription mode
 
@@ -79,10 +79,11 @@ set -e
 ## Governance
 
 This project uses Hivemoot governance:
-- **discussion** — proposal being discussed
-- **ready-to-implement** — passed vote
-- **candidate** — PR is implementation candidate
-- **merged** / **rejected** — final state
+- **hivemoot:discussion** — proposal being discussed
+- **hivemoot:voting** — active vote in progress
+- **hivemoot:ready-to-implement** — passed vote, open for implementation
+- **hivemoot:candidate** — PR is implementation candidate
+- **hivemoot:merge-ready** — approved and ready to merge
 
 See `.github/hivemoot.yml` for full rules.
 
@@ -111,7 +112,7 @@ ownership is visible.
 |------|---------|
 | `README.md` | User-facing setup guide |
 | `ROADMAP.md` | Architecture phases |
-| `VISION.md` | Project principles |
+| `VISION.md` | Project principles (pending merge of #75) |
 | `scripts/*.sh` | Runtime scripts |
 | `prompts/default.md` | Default agent prompt |
 | `.github/hivemoot.yml` | Governance config |
