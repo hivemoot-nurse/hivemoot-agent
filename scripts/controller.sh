@@ -170,6 +170,13 @@ append_secret_env() {
   fi
 }
 
+cleanup_job_home_credentials() {
+  local job_home="$1"
+
+  rm -f "${job_home}/.codex/auth.json" 2>/dev/null || true
+  rmdir "${job_home}/.codex" 2>/dev/null || true
+}
+
 spawn_worker() {
   local job_id="$1"
   local repo="$2"
@@ -991,6 +998,7 @@ run_job() {
   write_job_status "$job_workspace" "$job_id" "$repo" "$agent_id" "$trigger_type" "running" "-"
 
   if ! container_id="$(spawn_worker "$job_id" "$repo" "$agent_id" "$job_workspace" "$job_home" "$token_file" "$extra_prompt" "$session_key")"; then
+    cleanup_job_home_credentials "$job_home"
     write_job_status "$job_workspace" "$job_id" "$repo" "$agent_id" "$trigger_type" "failed" "125"
     return 125
   fi
@@ -1034,6 +1042,7 @@ run_job() {
   fi
 
   "$docker_cmd" rm -f "$container_id" >/dev/null 2>&1 || true
+  cleanup_job_home_credentials "$job_home"
 
   if [ "$exit_code" -eq 0 ]; then
     write_job_status "$job_workspace" "$job_id" "$repo" "$agent_id" "$trigger_type" "completed" "$exit_code"
