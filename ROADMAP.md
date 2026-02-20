@@ -12,11 +12,11 @@ from the discussions in [#6](https://github.com/hivemoot/hivemoot-agent/issues/6
 
 ## Phases
 
-### Phase 0 (shipped)
+### Phase 0 ✅ Shipped
 
 Core runtime with multi-provider, multi-agent, per-agent isolation.
 
-### Phase 1 (#16)
+### Phase 1 (#16) ✅ Shipped
 
 **Worker boundary hardening**
 
@@ -25,11 +25,12 @@ Core runtime with multi-provider, multi-agent, per-agent isolation.
 - Selective auth credential seeding (only what's needed, no session state)
 - Threat model documentation
 
-### Phase 2 (#17)
+### Phase 2 (#17) ✅ Shipped
 
 **Controller MVP**
 
-External orchestrator spawning ephemeral worker containers.
+Host-side controller (`scripts/controller.sh`) spawning ephemeral worker
+containers per job, with trigger-file queue and one-shot/loop modes.
 
 ### Phase 3 (#18)
 
