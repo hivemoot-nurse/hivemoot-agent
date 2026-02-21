@@ -159,6 +159,18 @@ validate_agent_id() {
   esac
 }
 
+validate_auth_mode() {
+  local auth_mode="$1"
+
+  case "$auth_mode" in
+    auto|api_key|subscription) ;;
+    *)
+      echo "Unsupported AGENT_AUTH_MODE: ${auth_mode}. Use auto|api_key|subscription." >&2
+      exit 1
+      ;;
+  esac
+}
+
 # Deterministic offset within an interval for staggered scheduling.
 # md5(repo:agent_id) % interval → seconds. Spreads agents evenly so
 # they never cluster at the same wake-up time.

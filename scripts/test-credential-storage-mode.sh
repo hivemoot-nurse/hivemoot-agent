@@ -102,4 +102,16 @@ seed_shared_provider_state "$api_key_agent_home" "$tmp_source_home"
 [ -f "$api_key_agent_home/.claude.json" ] \
   || fail "managed auth seeding missing onboarding file in api_key HOME"
 
+# validate_auth_mode: success cases (direct call, exit 0)
+validate_auth_mode "auto"
+validate_auth_mode "api_key"
+validate_auth_mode "subscription"
+# validate_auth_mode: failure cases (subshell to catch exit 1)
+if (validate_auth_mode "invalid") 2>/dev/null; then
+  fail "validate_auth_mode accepted 'invalid'"
+fi
+if (validate_auth_mode "") 2>/dev/null; then
+  fail "validate_auth_mode accepted empty string"
+fi
+
 echo "PASS: Credential storage mode checks"

@@ -52,13 +52,7 @@ agent_failure_backoff_jitter_pct="${PERIODIC_AGENT_FAILURE_BACKOFF_JITTER_PCT:-1
 watch_mentions="${WATCH_MENTIONS:-}"
 watch_poll_interval="${WATCH_POLL_INTERVAL:-300}"
 
-case "$auth_mode" in
-  auto|api_key|subscription) ;;
-  *)
-    echo "Unsupported AGENT_AUTH_MODE: ${auth_mode}. Use auto|api_key|subscription." >&2
-    exit 1
-    ;;
-esac
+validate_auth_mode "$auth_mode"
 
 if ! effective_auth_mode="$(resolve_effective_auth_mode "$provider" "$auth_mode")"; then
   echo "Unsupported auth mode/provider combination: provider=${provider} auth_mode=${auth_mode}" >&2

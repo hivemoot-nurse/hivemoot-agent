@@ -36,13 +36,7 @@ provider="${AGENT_PROVIDER:-claude}"
 auth_mode="${AGENT_AUTH_MODE:-auto}"
 effective_auth_mode=""
 
-case "$auth_mode" in
-  auto|api_key|subscription) ;;
-  *)
-    echo "Unsupported AGENT_AUTH_MODE: ${auth_mode}. Use auto|api_key|subscription." >&2
-    exit 1
-    ;;
-esac
+validate_auth_mode "$auth_mode"
 
 if ! effective_auth_mode="$(resolve_effective_auth_mode "$provider" "$auth_mode")"; then
   echo "Unsupported auth mode/provider combination: provider=${provider} auth_mode=${auth_mode}" >&2
