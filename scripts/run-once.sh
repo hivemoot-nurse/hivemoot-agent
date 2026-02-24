@@ -201,6 +201,21 @@ extract_codex_session_id_from_log() {
   sed -nE 's/.*"type":"thread\.started".*"thread_id":"([0-9a-fA-F-]{36})".*/\1/p' "$path" | head -n 1
 }
 
+extract_claude_session_id_from_log() {
+  local path="$1"
+
+  if [ ! -f "$path" ]; then
+    return 0
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    jq -Rr 'fromjson? | select(.type=="system" and .subtype=="init") | .session_id // empty' "$path" | head -n 1
+    return 0
+  fi
+
+  sed -nE 's/.*"type":"system".*"subtype":"init".*"session_id":"([0-9a-fA-F-]{36})".*/\1/p' "$path" | head -n 1
+}
+
 build_scoped_session_key() {
   local base_key="$1"
   local repo_full_name="$2"
@@ -254,7 +269,7 @@ auth_mode="${AGENT_AUTH_MODE:-auto}"
 hivemoot_buzz_role="${HIVEMOOT_BUZZ_ROLE:-}"
 target_repo="${TARGET_REPO:-}"
 workspace_root="${WORKSPACE_ROOT:-/workspace}"
-fresh_clone="${FRESH_CLONE:-1}"
+clone_depth="${GIT_CLONE_DEPTH:-50}"
 prompt_file="${AGENT_PROMPT_FILE:-/opt/hivemoot-agent/prompts/default.md}"
 extra_prompt="${AGENT_EXTRA_PROMPT:-}"
 agent_model="${AGENT_MODEL:-}"
@@ -283,6 +298,11 @@ fi
 
 if ! is_positive_integer "$session_resume_max_age_hours"; then
   echo "Unsupported SESSION_RESUME_MAX_AGE_HOURS: ${session_resume_max_age_hours}. Use a positive integer." >&2
+  exit 1
+fi
+
+if ! is_non_negative_integer "$clone_depth"; then
+  echo "Unsupported GIT_CLONE_DEPTH: ${clone_depth}. Use 0 (full clone) or a positive integer." >&2
   exit 1
 fi
 
@@ -325,7 +345,7 @@ else
   job_home=""
 fi
 
-codex_resume_key="$(build_scoped_session_key "$agent_session_key" "$target_repo" "$provider" "$agent_model" "$agent_tool_options_json")"
+session_resume_key="$(build_scoped_session_key "$agent_session_key" "$target_repo" "$provider" "$agent_model" "$agent_tool_options_json")"
 provider_session_map_dir="${workspace_root}/sessions/${provider}"
 provider_session_map_file="${provider_session_map_dir}/tool-session-map.tsv"
 
@@ -391,60 +411,11 @@ if [ -n "$job_home" ]; then
   chmod 700 "$job_home" "$job_home/.config" "$job_home/.cache" \
     "$job_home/.local" "$job_home/.local/share" 2>/dev/null || true
 
-  # Selective auth seeding: copy ONLY credential files, skip session state.
-  # Claude Code: auth tokens live in ~/.config/claude/
-  if [ -d "${HOME}/.config/claude" ]; then
-    mkdir -p "$job_home/.config/claude"
-    cp -R "${HOME}/.config/claude"/. "$job_home/.config/claude"/
-  fi
-  # Claude Code: ~/.claude/ contains both auth and session state.
-  # Seed only the OAuth credential file; skip auto-memory and projects/.
-  if [ -f "${HOME}/.claude/.credentials.json" ]; then
-    mkdir -p "$job_home/.claude"
-    cp "${HOME}/.claude/.credentials.json" "$job_home/.claude/.credentials.json"
-  fi
-  if [ -f "${HOME}/.claude.json" ]; then
-    cp "${HOME}/.claude.json" "$job_home/.claude.json"
-  fi
+  # Seed only auth credentials into the isolated job home; skip session
+  # state (conversation caches, memory, etc.).
+  seed_provider_auth "$job_home" "$HOME"
 
-  # Codex: auth.json is the credential file
-  if [ -f "${HOME}/.codex/auth.json" ]; then
-    mkdir -p "$job_home/.codex"
-    cp "${HOME}/.codex/auth.json" "$job_home/.codex/auth.json"
-  fi
-  # Codex: skip ~/.codex/conversations/, ~/.codex/cache/
-
-  # Gemini: seed only known auth/credential files; skip session state
-  # (memory.md, settings.json, state.json, telemetry, etc.)
-  if [ -d "${HOME}/.gemini" ]; then
-    mkdir -p "$job_home/.gemini"
-    for f in oauth_creds.json google_accounts.json mcp-oauth-tokens.json mcp-oauth-tokens-v2.json .env; do
-      if [ -f "${HOME}/.gemini/$f" ]; then
-        cp "${HOME}/.gemini/$f" "$job_home/.gemini/$f"
-      fi
-    done
-  fi
-
-  # Kilo: seed config (provider auth, permissions) from ~/.config/kilo/
-  if [ -d "${HOME}/.config/kilo" ]; then
-    mkdir -p "$job_home/.config/kilo"
-    cp -R "${HOME}/.config/kilo"/. "$job_home/.config/kilo"/
-  fi
-
-  # OpenCode: seed config from ~/.config/opencode/
-  if [ -d "${HOME}/.config/opencode" ]; then
-    mkdir -p "$job_home/.config/opencode"
-    cp -R "${HOME}/.config/opencode"/. "$job_home/.config/opencode"/
-  fi
-  if [ -f "${HOME}/.local/share/opencode/auth.json" ]; then
-    mkdir -p "$job_home/.local/share/opencode"
-    cp "${HOME}/.local/share/opencode/auth.json" "$job_home/.local/share/opencode/auth.json"
-  fi
-
-  # OpenCode: auto-generate config and auth.json if missing
-  generate_opencode_config "$job_home"
-
-  # Carry forward .profile so agent subprocesses find npm binaries
+  # Carry forward .profile so agent subprocesses find npm binaries.
   if [ -f "${HOME}/.profile" ]; then
     cp "${HOME}/.profile" "$job_home/.profile"
   fi
@@ -511,6 +482,21 @@ Local repository path: ${repo_dir}
 "
 fi
 
+# Technical notes block: runtime details agents should be aware of.
+# Append new notes here as the environment evolves.
+technical_notes=""
+if [ "$clone_depth" -gt 0 ]; then
+  technical_notes="${technical_notes}
+- Shallow clone (depth ${clone_depth}). git log/blame are truncated. Run \`git fetch --unshallow\` if you need full history."
+fi
+
+if [ -n "$technical_notes" ]; then
+  system_prompt="${system_prompt}
+Technical notes:
+${technical_notes}
+"
+fi
+
 # User message: mention context / extra instructions when present,
 # otherwise a default directive.
 default_user_message="Make meaningful contributions to the repository according to your role instructions."
@@ -524,6 +510,39 @@ fi
 prompt="${system_prompt}
 
 ${user_message}"
+
+resolve_remote_default_branch() {
+  local dir="$1"
+  local branch=""
+
+  # Prefer origin/HEAD (set by clone or remote set-head)
+  if branch="$(git -C "$dir" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null)"; then
+    branch="${branch#refs/remotes/origin/}"
+    if [ -n "$branch" ]; then
+      printf '%s' "$branch"
+      return 0
+    fi
+  fi
+
+  # Fallback: try well-known defaults
+  local candidate
+  for candidate in main master; do
+    if git -C "$dir" rev-parse --verify "origin/${candidate}" >/dev/null 2>&1; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+
+  # Last resort: first remote branch
+  branch="$(git -C "$dir" branch -r --format='%(refname:short)' 2>/dev/null \
+    | sed -n 's|^origin/||p' | grep -v '^HEAD$' | head -n 1)"
+  if [ -n "$branch" ]; then
+    printf '%s' "$branch"
+    return 0
+  fi
+
+  return 1
+}
 
 clone_repo() {
   local askpass
@@ -539,22 +558,44 @@ esac
 EOF
   chmod 700 "$askpass"
 
-  if [ "$fresh_clone" = "1" ] && [ -d "$repo_dir" ]; then
-    log "Removing previous clone: ${repo_dir}"
-    rm -rf "$repo_dir"
+  # Try to sync an existing checkout; on any failure, delete and reclone.
+  local sync_ok=0
+  if [ -d "$repo_dir/.git" ]; then
+    log "Reusing existing clone: ${repo_dir}"
+    local default_branch=""
+    if default_branch="$(resolve_remote_default_branch "$repo_dir")"; then
+      log "Updating to origin/${default_branch}"
+      if git -C "$repo_dir" fetch --prune origin 2>&1 \
+        && git -C "$repo_dir" reset --hard "origin/${default_branch}" 2>&1 \
+        && git -C "$repo_dir" clean -fdx 2>&1; then
+        sync_ok=1
+      else
+        log "Sync failed; deleting stale checkout and recloning"
+      fi
+    else
+      log "Could not determine default branch; deleting stale checkout and recloning"
+    fi
+
+    if [ "$sync_ok" -eq 0 ]; then
+      rm -rf "$repo_dir"
+    fi
   fi
 
   if [ ! -d "$repo_dir/.git" ]; then
-    log "Cloning https://github.com/${target_repo}.git"
+    local clone_args=(--single-branch)
+    local depth_label="full"
+    if [ "$clone_depth" -gt 0 ]; then
+      clone_args+=(--depth "$clone_depth")
+      depth_label="$clone_depth"
+    fi
+    log "Cloning https://github.com/${target_repo}.git (depth=${depth_label})"
     if ! GIT_ASKPASS="$askpass" GIT_PAT="$github_token" GIT_TERMINAL_PROMPT=0 \
-      git clone "https://github.com/${target_repo}.git" "$repo_dir" >/dev/null 2>&1; then
+      git clone "${clone_args[@]}" "https://github.com/${target_repo}.git" "$repo_dir" 2>&1; then
       rm -rf "$repo_dir"
       rm -f "$askpass"
       echo "Failed to clone ${target_repo}. Check token and repo access." >&2
       exit 1
     fi
-  else
-    log "Reusing existing clone: ${repo_dir}"
   fi
 
   rm -f "$askpass"
@@ -576,6 +617,11 @@ codex_active_session_created_epoch=""
 codex_used_resume=0
 codex_fresh_cmd=()
 codex_resume_supported=0
+claude_active_session_id=""
+claude_active_session_created_epoch=""
+claude_used_resume=0
+claude_fresh_cmd=()
+claude_resume_supported=0
 case "$provider" in
   codex)
     if ! command -v codex >/dev/null 2>&1; then
@@ -644,7 +690,7 @@ case "$provider" in
     fi
     codex_fresh_cmd=(codex exec "${codex_cmd_common[@]}" "$prompt")
 
-    if [ "$session_resume" = "1" ] && [ -n "$codex_resume_key" ]; then
+    if [ "$session_resume" = "1" ] && [ -n "$session_resume_key" ]; then
       # Probe resume support defensively: some CLI builds may expose
       # `resume` but handle `resume --help` inconsistently.
       if codex exec resume --help >/dev/null 2>&1 \
@@ -653,13 +699,13 @@ case "$provider" in
       else
         log "Codex resume unavailable; starting fresh session for key=${agent_session_key}"
       fi
-    elif [ "$session_resume" = "0" ] && [ -n "$codex_resume_key" ]; then
+    elif [ "$session_resume" = "0" ] && [ -n "$session_resume_key" ]; then
       log "Codex session resume disabled (SESSION_RESUME=0); starting fresh session for key=${agent_session_key}"
     fi
 
     codex_resume_now_epoch="$(date +%s)"
     if [ "$codex_resume_supported" -eq 1 ]; then
-      codex_session_record="$(load_session_record_for_key "$provider_session_map_file" "$codex_resume_key")"
+      codex_session_record="$(load_session_record_for_key "$provider_session_map_file" "$session_resume_key")"
       if [ -n "$codex_session_record" ]; then
         IFS=$'\t' read -r codex_record_session_id codex_record_created_epoch codex_record_last_used_epoch <<< "$codex_session_record"
       else
@@ -690,7 +736,7 @@ case "$provider" in
 You are resuming a prior session for this mention thread. Some data in your context may be stale — refresh the relevant information before acting."
       cmd=(codex exec resume "${codex_cmd_common[@]}" "$codex_active_session_id" "$prompt")
     else
-      if [ -n "$codex_resume_key" ] && [ "$codex_resume_supported" -eq 1 ]; then
+      if [ -n "$session_resume_key" ] && [ "$codex_resume_supported" -eq 1 ]; then
         log "Codex session resume: no saved session for key=${agent_session_key}; starting fresh"
       fi
       cmd=("${codex_fresh_cmd[@]}")
@@ -764,12 +810,67 @@ You are resuming a prior session for this mention thread. Some data in your cont
     fi
     log "Claude auth mode resolved to: ${claude_auth_mode}"
 
-    cmd=(claude -p --verbose --output-format stream-json --dangerously-skip-permissions)
-    cmd+=(--append-system-prompt "$system_prompt")
+    claude_fresh_cmd=(claude -p --verbose --output-format stream-json --dangerously-skip-permissions)
+    claude_fresh_cmd+=(--append-system-prompt "$system_prompt")
     if [ -n "$agent_model" ]; then
-      cmd+=(--model "$agent_model")
+      claude_fresh_cmd+=(--model "$agent_model")
     fi
-    cmd+=("$user_message")
+    claude_fresh_cmd+=("$user_message")
+
+    if [ "$session_resume" = "1" ] && [ -n "$session_resume_key" ]; then
+      if claude -p --resume --help >/dev/null 2>&1 \
+        || claude --help 2>&1 | grep -Eq '(^|[[:space:]])--resume([[:space:]]|$)'; then
+        claude_resume_supported=1
+      else
+        log "Claude resume unavailable; starting fresh session for key=${agent_session_key}"
+      fi
+    elif [ "$session_resume" = "0" ] && [ -n "$session_resume_key" ]; then
+      log "Claude session resume disabled (SESSION_RESUME=0); starting fresh session for key=${agent_session_key}"
+    fi
+
+    claude_resume_now_epoch="$(date +%s)"
+    if [ "$claude_resume_supported" -eq 1 ]; then
+      claude_session_record="$(load_session_record_for_key "$provider_session_map_file" "$session_resume_key")"
+      if [ -n "$claude_session_record" ]; then
+        IFS=$'\t' read -r claude_record_session_id claude_record_created_epoch claude_record_last_used_epoch <<< "$claude_session_record"
+      else
+        claude_record_session_id=""
+        claude_record_created_epoch=""
+        claude_record_last_used_epoch=""
+      fi
+
+      if [ -n "$claude_record_session_id" ] && ! is_valid_uuid "$claude_record_session_id"; then
+        log "Claude session resume: ignoring invalid session id for key=${agent_session_key}"
+        claude_active_session_id=""
+      elif [ -n "$claude_record_session_id" ] && ! should_resume_session \
+        "$claude_record_created_epoch" "$claude_record_last_used_epoch" "$claude_resume_now_epoch" \
+        "$session_resume_max_idle_hours" "$session_resume_max_age_hours"; then
+        log "Claude session resume: policy reset for key=${agent_session_key} (max_idle=${session_resume_max_idle_hours}h max_age=${session_resume_max_age_hours}h)"
+        claude_active_session_id=""
+      else
+        claude_active_session_id="$claude_record_session_id"
+        claude_active_session_created_epoch="$claude_record_created_epoch"
+      fi
+    fi
+
+    if [ -n "$claude_active_session_id" ]; then
+      claude_used_resume=1
+      log "Claude session resume: key=${agent_session_key} session=${claude_active_session_id}"
+      claude_resume_user_message="${user_message}
+
+You are resuming a prior session for this mention thread. Some data in your context may be stale — refresh the relevant information before acting."
+      cmd=(claude --resume "$claude_active_session_id" -p --verbose --output-format stream-json --dangerously-skip-permissions)
+      cmd+=(--append-system-prompt "$system_prompt")
+      if [ -n "$agent_model" ]; then
+        cmd+=(--model "$agent_model")
+      fi
+      cmd+=("$claude_resume_user_message")
+    else
+      if [ -n "$session_resume_key" ] && [ "$claude_resume_supported" -eq 1 ]; then
+        log "Claude session resume: no saved session for key=${agent_session_key}; starting fresh"
+      fi
+      cmd=("${claude_fresh_cmd[@]}")
+    fi
     run_in_repo=1
     ;;
 
@@ -923,7 +1024,16 @@ if [ "$provider" = "codex" ] && [ "$codex_used_resume" -eq 1 ] && [ "$exit_code"
   run_selected_command
 fi
 
-if [ "$provider" = "codex" ] && [ -n "$codex_resume_key" ] && [ "$exit_code" -eq 0 ]; then
+if [ "$provider" = "claude" ] && [ "$claude_used_resume" -eq 1 ] && [ "$exit_code" -ne 0 ]; then
+  log "Claude session resume failed once; retrying with a fresh session"
+  cmd=("${claude_fresh_cmd[@]}")
+  claude_used_resume=0
+  claude_active_session_id=""
+  claude_active_session_created_epoch=""
+  run_selected_command
+fi
+
+if [ "$provider" = "codex" ] && [ -n "$session_resume_key" ] && [ "$exit_code" -eq 0 ]; then
   codex_session_from_log="$(extract_codex_session_id_from_log "$last_command_log")"
   if is_valid_uuid "$codex_session_from_log"; then
     codex_saved_at_epoch="$(date +%s)"
@@ -934,11 +1044,30 @@ if [ "$provider" = "codex" ] && [ -n "$codex_resume_key" ] && [ "$exit_code" -eq
       && is_non_negative_integer "$codex_active_session_created_epoch"; then
       codex_created_to_store="$codex_active_session_created_epoch"
     fi
-    save_session_record_for_key "$provider_session_map_file" "$codex_resume_key" \
+    save_session_record_for_key "$provider_session_map_file" "$session_resume_key" \
       "$codex_session_from_log" "$codex_created_to_store" "$codex_saved_at_epoch"
     log "Codex session saved: key=${agent_session_key} session=${codex_session_from_log}"
   else
     log "Codex session id not found in log for key=${agent_session_key}"
+  fi
+fi
+
+if [ "$provider" = "claude" ] && [ -n "$session_resume_key" ] && [ "$exit_code" -eq 0 ]; then
+  claude_session_from_log="$(extract_claude_session_id_from_log "$last_command_log")"
+  if is_valid_uuid "$claude_session_from_log"; then
+    claude_saved_at_epoch="$(date +%s)"
+    claude_created_to_store="$claude_saved_at_epoch"
+    if [ "$claude_used_resume" -eq 1 ] \
+      && [ -n "$claude_active_session_id" ] \
+      && [ "$claude_session_from_log" = "$claude_active_session_id" ] \
+      && is_non_negative_integer "$claude_active_session_created_epoch"; then
+      claude_created_to_store="$claude_active_session_created_epoch"
+    fi
+    save_session_record_for_key "$provider_session_map_file" "$session_resume_key" \
+      "$claude_session_from_log" "$claude_created_to_store" "$claude_saved_at_epoch"
+    log "Claude session saved: key=${agent_session_key} session=${claude_session_from_log}"
+  else
+    log "Claude session id not found in log for key=${agent_session_key}"
   fi
 fi
 
