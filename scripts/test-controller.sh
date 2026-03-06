@@ -503,6 +503,43 @@ run_custom_prompt_companion_base_case() {
   echo "PASS: custom prompt case mounts sibling base prompt"
 }
 
+run_custom_skills_dir_case() {
+  local repo_root="$1"
+  local case_dir="$2"
+  local skills_dir="${case_dir}/custom-skills"
+  local run_log=""
+
+  mkdir -p "${skills_dir}/custom-skill"
+  printf '# Custom Skill\n' > "${skills_dir}/custom-skill/SKILL.md"
+  setup_mock_docker "${case_dir}/mock-bin"
+
+  env -i \
+    PATH="${case_dir}/mock-bin:${PATH}" \
+    HOME="${case_dir}/home" \
+    MOCK_DOCKER_STATE_DIR="${case_dir}/mock-state" \
+    TARGET_REPO="owner/repo" \
+    CONTROLLER_RUN_MODE="once" \
+    CONTROLLER_MAX_WORKERS="1" \
+    CONTROLLER_WORKSPACE_ROOT="${case_dir}/workspace" \
+    WORKER_IMAGE="hivemoot-agent:test" \
+    AGENT_ID_01="worker" \
+    AGENT_GITHUB_TOKEN_01="token-1" \
+    AGENT_SKILLS="custom-skill" \
+    AGENT_SKILLS_DIR="${skills_dir}" \
+    AGENT_TIMEOUT_SECONDS="120" \
+    PERIODIC_INTERVAL_SECS="60" \
+    PERIODIC_JITTER_SECS="0" \
+    bash "${repo_root}/scripts/controller.sh"
+
+  run_log="${case_dir}/mock-state/docker-run.log"
+  [ -f "$run_log" ] || fail "missing docker run log in custom skills case"
+  assert_file_contains "$run_log" "-e AGENT_SKILLS=custom-skill"
+  assert_file_contains "$run_log" "-e AGENT_SKILLS_DIR=${skills_dir}"
+  assert_file_contains "$run_log" "-v ${skills_dir}:${skills_dir}:ro"
+
+  echo "PASS: custom skills dir case forwards and mounts custom skills"
+}
+
 run_failure_case() {
   local repo_root="$1"
   local case_dir="$2"
@@ -1566,6 +1603,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 echo "Running controller script checks"
 run_success_case "$repo_root" "${tmpdir}/success"
 run_custom_prompt_companion_base_case "$repo_root" "${tmpdir}/custom-prompt-companion-base"
+run_custom_skills_dir_case "$repo_root" "${tmpdir}/custom-skills-dir"
 run_failure_case "$repo_root" "${tmpdir}/failure"
 run_spawn_failure_cleanup_case "$repo_root" "${tmpdir}/spawn-failure"
 run_mentions_case "$repo_root" "${tmpdir}/mentions"

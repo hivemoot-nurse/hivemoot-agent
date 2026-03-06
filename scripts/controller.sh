@@ -251,6 +251,7 @@ spawn_worker() {
 
   local container_name="${worker_name_prefix}-${job_id}"
   local prompt_file="${AGENT_PROMPT_FILE:-}"
+  local skills_dir="${AGENT_SKILLS_DIR:-}"
   local companion_base_prompt=""
   local worker_run_mode="once"
 
@@ -328,6 +329,7 @@ spawn_worker() {
   append_env_if_set AGENT_MODEL
   append_env_if_set AGENT_PROMPT_FILE
   append_env_if_set AGENT_SKILLS
+  append_env_if_set AGENT_SKILLS_DIR
   append_env_if_set AGENT_TIMEOUT_SECONDS
   append_env_if_set AGENT_TOOL_OPTIONS_JSON
   append_env_if_set GIT_CLONE_DEPTH
@@ -365,6 +367,17 @@ spawn_worker() {
       docker_run_args+=( -v "${companion_base_prompt}:${companion_base_prompt}:ro" )
     fi
     docker_run_args+=( -v "${prompt_file}:${prompt_file}:ro" )
+  fi
+
+  if [ -n "$skills_dir" ] && [ -d "$skills_dir" ]; then
+    case "$skills_dir" in
+      /*) ;;
+      *)
+        echo "AGENT_SKILLS_DIR must be an absolute path when mounting custom skills." >&2
+        return 1
+        ;;
+    esac
+    docker_run_args+=( -v "${skills_dir}:${skills_dir}:ro" )
   fi
 
   docker_run_args+=( "$worker_image" )

@@ -138,7 +138,7 @@ preflight_check() {
   local provider="${AGENT_PROVIDER:-claude}"
   local auth_mode="${AGENT_AUTH_MODE:-auto}"
   local prompt_file="${AGENT_PROMPT_FILE:-/opt/hivemoot-agent/prompts/system/autonomous.md}"
-  local agent_skills_dir="${AGENT_SKILLS_DIR:-/opt/hivemoot-agent/prompts/skills}"
+  local agent_skills_dir="${AGENT_SKILLS_DIR:-/opt/hivemoot-agent/skills}"
 
   if ! command -v "$provider" >/dev/null 2>&1; then
     echo "Pre-flight: ${provider} CLI is not installed." >&2

@@ -172,7 +172,15 @@ test_load_single_skill() {
     fail "load_skill_prompts should strip frontmatter"
   fi
 
-  echo "  ✓ Single skill loads correctly"
+  if [[ "$result" != *'<skill name="skill-one">'* ]]; then
+    fail "load_skill_prompts should wrap skill in <skill> tag"
+  fi
+
+  if [[ "$result" != *'</skill>'* ]]; then
+    fail "load_skill_prompts should close </skill> tag"
+  fi
+
+  echo "  ✓ Single skill loads correctly with XML wrapper"
 }
 
 test_load_multiple_skills() {
@@ -196,7 +204,21 @@ test_load_multiple_skills() {
     fail "load_skill_prompts should load second skill"
   fi
 
-  echo "  ✓ Multiple skills load correctly"
+  if [[ "$result" != *'<skill name="skill-one">'* ]]; then
+    fail "load_skill_prompts should wrap first skill in <skill> tag"
+  fi
+
+  if [[ "$result" != *'<skill name="skill-two">'* ]]; then
+    fail "load_skill_prompts should wrap second skill in <skill> tag"
+  fi
+
+  local skill_tag_count
+  skill_tag_count="$(echo "$result" | grep -c '</skill>' || true)"
+  if [ "$skill_tag_count" -ne 2 ]; then
+    fail "Expected 2 </skill> closing tags, found $skill_tag_count"
+  fi
+
+  echo "  ✓ Multiple skills load correctly with XML wrappers"
 }
 
 test_invalid_skill_name() {
@@ -280,6 +302,71 @@ test_empty_skill_list() {
   echo "  ✓ Empty skill list returns nothing"
 }
 
+test_shipped_skills_load() {
+  echo "Testing shipped skill files load correctly..."
+
+  source_lib
+
+  local skills_dir="${SCRIPT_DIR}/../skills"
+  local expected_skills="security-reviewer code-reviewer test-advocate dep-auditor pr-hygiene"
+
+  for skill in $expected_skills; do
+    local skill_file="${skills_dir}/${skill}/SKILL.md"
+    if [ ! -f "$skill_file" ]; then
+      fail "Shipped skill file missing: ${skill_file}"
+    fi
+
+    local result
+    result="$(load_skill_prompts "$skill" "$skills_dir")"
+
+    if [ -z "$result" ]; then
+      fail "Skill '${skill}' loaded empty content"
+    fi
+
+    # Frontmatter must be stripped
+    if [[ "$result" == *"name: ${skill}"* ]]; then
+      fail "Skill '${skill}' frontmatter not stripped"
+    fi
+
+    # Body must contain the skill heading
+    if [[ "$result" != *"## Skill:"* ]]; then
+      fail "Skill '${skill}' missing expected heading"
+    fi
+
+    # Must be wrapped in XML skill tag
+    if [[ "$result" != *"<skill name=\"${skill}\">"* ]]; then
+      fail "Skill '${skill}' missing <skill> XML wrapper"
+    fi
+
+    if [[ "$result" != *"</skill>"* ]]; then
+      fail "Skill '${skill}' missing </skill> closing tag"
+    fi
+  done
+
+  # Test loading all shipped skills at once
+  local all_csv
+  all_csv="$(echo "$expected_skills" | tr ' ' ',')"
+  local combined
+  combined="$(load_skill_prompts "$all_csv" "$skills_dir")"
+
+  for skill_name in $expected_skills; do
+    # Each skill should appear in combined output (check a unique word from each)
+    local check_word
+    case "$skill_name" in
+      security-reviewer) check_word="Rationalizations to Reject" ;;
+      code-reviewer)     check_word="Review Priorities" ;;
+      test-advocate)     check_word="Test Advocate" ;;
+      dep-auditor)       check_word="Dependency Auditor" ;;
+      pr-hygiene)        check_word="PR Hygiene" ;;
+    esac
+    if [[ "$combined" != *"$check_word"* ]]; then
+      fail "Combined load missing content from '${skill_name}'"
+    fi
+  done
+
+  echo "  ✓ All shipped skills load correctly (${expected_skills// /, })"
+}
+
 echo "Running skill loading tests..."
 echo
 
@@ -291,6 +378,7 @@ test_invalid_skill_name
 test_skill_name_is_valid
 test_missing_skill_file
 test_empty_skill_list
+test_shipped_skills_load
 
 echo
 echo "All skill loading tests passed!"
