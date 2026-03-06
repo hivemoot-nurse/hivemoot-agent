@@ -117,6 +117,7 @@ preflight_check() {
   local provider="${AGENT_PROVIDER:-claude}"
   local auth_mode="${AGENT_AUTH_MODE:-auto}"
   local prompt_file="${AGENT_PROMPT_FILE:-/opt/hivemoot-agent/prompts/system/autonomous.md}"
+  local agent_skills_dir="${AGENT_SKILLS_DIR:-/opt/hivemoot-agent/prompts/skills}"
   local failures=0
 
   log "Pre-flight: validating configuration"
@@ -144,11 +145,18 @@ preflight_check() {
   # Skill files exist
   if [ -n "${AGENT_SKILLS:-}" ]; then
     local skill_name
+    local skill_file
     while IFS= read -r skill_name; do
       skill_name="$(trim "$skill_name")"
       [ -z "$skill_name" ] && continue
-      if [ ! -f "/opt/hivemoot-agent/prompts/skills/${skill_name}/SKILL.md" ]; then
-        echo "Pre-flight: skill file not found: /opt/hivemoot-agent/prompts/skills/${skill_name}/SKILL.md" >&2
+      if ! skill_name_is_valid "$skill_name"; then
+        echo "Pre-flight: invalid skill name: '${skill_name}' (AGENT_SKILLS=${AGENT_SKILLS})" >&2
+        failures=$((failures + 1))
+        continue
+      fi
+      skill_file="${agent_skills_dir}/${skill_name}/SKILL.md"
+      if [ ! -f "$skill_file" ]; then
+        echo "Pre-flight: skill file not found: ${skill_file}" >&2
         failures=$((failures + 1))
       fi
     done < <(tr ',' '\n' <<< "${AGENT_SKILLS}")

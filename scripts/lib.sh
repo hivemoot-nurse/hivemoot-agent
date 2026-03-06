@@ -205,12 +205,10 @@ load_skill_prompts() {
   while IFS= read -r skill; do
     skill="$(trim "$skill")"
     [ -z "$skill" ] && continue
-    case "$skill" in
-      *[!a-zA-Z0-9_-]*)
-        echo "Invalid skill name: '${skill}' (AGENT_SKILLS=${skills_list})" >&2
-        return 1
-        ;;
-    esac
+    if ! skill_name_is_valid "$skill"; then
+      echo "Invalid skill name: '${skill}' (AGENT_SKILLS=${skills_list})" >&2
+      return 1
+    fi
     skill_file="${skills_dir}/${skill}/SKILL.md"
     if [ ! -f "$skill_file" ]; then
       echo "Skill file not found: ${skill_file} (AGENT_SKILLS=${skills_list})" >&2
@@ -227,6 +225,18 @@ $(strip_frontmatter "$skill_file")"
   done < <(tr ',' '\n' <<< "$skills_list")
 
   printf '%s' "$result"
+}
+
+skill_name_is_valid() {
+  local skill_name="$1"
+
+  case "$skill_name" in
+    *[!a-zA-Z0-9_-]*)
+      return 1
+      ;;
+  esac
+
+  return 0
 }
 
 validate_target_repo() {

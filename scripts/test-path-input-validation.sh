@@ -30,6 +30,30 @@ assert_fails_with() {
   rm -f "$stderr_file"
 }
 
+assert_fails_with_contains() {
+  local expected_substring="$1"
+  shift
+
+  local stderr_file
+  stderr_file="$(mktemp)"
+
+  if "$@" > /dev/null 2> "$stderr_file"; then
+    rm -f "$stderr_file"
+    fail "command succeeded unexpectedly: $*"
+  fi
+
+  if ! grep -Fq "$expected_substring" "$stderr_file"; then
+    echo "Expected stderr substring:" >&2
+    echo "  $expected_substring" >&2
+    echo "Actual stderr:" >&2
+    sed 's/^/  /' "$stderr_file" >&2
+    rm -f "$stderr_file"
+    fail "stderr mismatch for: $*"
+  fi
+
+  rm -f "$stderr_file"
+}
+
 echo "Running workspace root and agent ID validation checks"
 
 assert_fails_with \
@@ -77,3 +101,15 @@ assert_fails_with \
   env TARGET_REPO=owner/repo GIT_CLONE_DEPTH=1.5 bash scripts/run-once.sh
 
 echo "PASS: GIT_CLONE_DEPTH validation checks"
+
+echo "Running AGENT_SKILLS name validation checks"
+
+assert_fails_with_contains \
+  "Pre-flight: invalid skill name: '../bad' (AGENT_SKILLS=../bad)" \
+  env TARGET_REPO=owner/repo AGENT_ID_01=worker AGENT_GITHUB_TOKEN_01=dummy AGENT_SKILLS=../bad bash scripts/run-multi.sh
+
+assert_fails_with_contains \
+  "Pre-flight: invalid skill name: '../bad' (AGENT_SKILLS=../bad)" \
+  env TARGET_REPO=owner/repo AGENT_ID_01=worker AGENT_GITHUB_TOKEN_01=dummy AGENT_SKILLS=../bad bash scripts/run-loop.sh
+
+echo "PASS: AGENT_SKILLS name validation checks"

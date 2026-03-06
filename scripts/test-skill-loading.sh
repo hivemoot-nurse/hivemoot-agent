@@ -220,6 +220,30 @@ test_invalid_skill_name() {
   echo "  ✓ Invalid skill names are rejected"
 }
 
+test_skill_name_is_valid() {
+  echo "Testing skill_name_is_valid..."
+
+  source_lib
+
+  if ! skill_name_is_valid "alpha-ONE_2"; then
+    fail "skill_name_is_valid should accept alphanumeric, dash, and underscore"
+  fi
+
+  if skill_name_is_valid "../escape"; then
+    fail "skill_name_is_valid should reject path traversal characters"
+  fi
+
+  if skill_name_is_valid "skill with spaces"; then
+    fail "skill_name_is_valid should reject spaces"
+  fi
+
+  if skill_name_is_valid "skill/slash"; then
+    fail "skill_name_is_valid should reject slashes"
+  fi
+
+  echo "  ✓ skill_name_is_valid enforces expected format"
+}
+
 test_missing_skill_file() {
   echo "Testing missing skill file..."
 
@@ -264,6 +288,7 @@ test_frontmatter_with_divider
 test_load_single_skill
 test_load_multiple_skills
 test_invalid_skill_name
+test_skill_name_is_valid
 test_missing_skill_file
 test_empty_skill_list
 

@@ -262,6 +262,7 @@ workspace_root="${WORKSPACE_ROOT:-/workspace}"
 clone_depth="${GIT_CLONE_DEPTH:-50}"
 prompt_file="${AGENT_PROMPT_FILE:-/opt/hivemoot-agent/prompts/system/autonomous.md}"
 agent_skills="${AGENT_SKILLS:-}"
+agent_skills_dir="${AGENT_SKILLS_DIR:-/opt/hivemoot-agent/prompts/skills}"
 extra_prompt="${AGENT_EXTRA_PROMPT:-}"
 agent_model="${AGENT_MODEL:-}"
 agent_tool_options_json="${AGENT_TOOL_OPTIONS_JSON:-"{}"}"
@@ -489,7 +490,7 @@ fi
 # Skill modules: capability blocks appended after the role context.
 if [ -n "$agent_skills" ]; then
   skills_content=""
-  if ! skills_content="$(load_skill_prompts "$agent_skills" "/opt/hivemoot-agent/prompts/skills")"; then
+  if ! skills_content="$(load_skill_prompts "$agent_skills" "$agent_skills_dir")"; then
     exit 1
   fi
   if [ -n "$skills_content" ]; then
