@@ -64,6 +64,8 @@ jobs:
         run: bash scripts/test-session-resume-lifecycle.sh
       - name: Verify provider mismatch detection behavior
         run: bash scripts/test-provider-mismatch.sh
+      - name: Verify shared preflight helper behavior
+        run: bash scripts/test-preflight-check-common.sh
       - name: Verify controller behavior
         run: bash scripts/test-controller.sh
       - name: Verify run-loop next_run_at propagation behavior
