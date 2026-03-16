@@ -15,6 +15,11 @@ jobs:
     outputs:
       docker: ${{ steps.changes.outputs.docker }}
       dockerfile: ${{ steps.changes.outputs.dockerfile }}
+      shellcheck: ${{ steps.changes.outputs.shellcheck }}
+      script_validation: ${{ steps.changes.outputs.script_validation }}
+      compose: ${{ steps.changes.outputs.compose }}
+      env_docs: ${{ steps.changes.outputs.env_docs }}
+      markdown: ${{ steps.changes.outputs.markdown }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3
@@ -32,9 +37,32 @@ jobs:
             dockerfile:
               - 'Dockerfile'
               - '.github/workflows/ci.yml'
+            shellcheck:
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+            script_validation:
+              - 'scripts/**'
+              - 'prompts/**'
+              - 'skills/**'
+              - '.trivyignore'
+              - '.github/workflows/ci.yml'
+            compose:
+              - 'docker-compose.yml'
+              - 'docker-compose.subscription.local.yml'
+              - '.github/workflows/ci.yml'
+            env_docs:
+              - 'docker-compose.yml'
+              - '.env.example'
+              - '.github/workflows/ci.yml'
+            markdown:
+              - '**/*.md'
+              - '.markdownlint-cli2.yaml'
+              - '.github/workflows/ci.yml'
 
   shellcheck:
     name: ShellCheck
+    needs: [filter]
+    if: needs.filter.outputs.shellcheck == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +71,8 @@ jobs:
 
   script-validation:
     name: Script Validation
+    needs: [filter]
+    if: needs.filter.outputs.script_validation == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -79,6 +109,8 @@ jobs:
 
   hadolint:
     name: Hadolint
+    needs: [filter]
+    if: needs.filter.outputs.dockerfile == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,6 +120,8 @@ jobs:
 
   compose-config:
     name: Compose Config
+    needs: [filter]
+    if: needs.filter.outputs.compose == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,6 +130,8 @@ jobs:
 
   env-docs:
     name: Env Documentation
+    needs: [filter]
+    if: needs.filter.outputs.env_docs == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -115,6 +151,8 @@ jobs:
 
   markdownlint:
     name: Markdown Lint
+    needs: [filter]
+    if: needs.filter.outputs.markdown == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
