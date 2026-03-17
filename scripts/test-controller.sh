@@ -922,6 +922,7 @@ run_mentions_retry_after_failure_case() {
 run_task_watch_case() {
   local repo_root="$1"
   local case_dir="$2"
+  local skills_dir="${case_dir}/custom-skills"
   local run_log=""
   local curl_log=""
   local -a messages_files=()
@@ -929,6 +930,8 @@ run_task_watch_case() {
   local -a summary_files=()
 
   mkdir -p "$case_dir"
+  mkdir -p "${skills_dir}/custom-skill"
+  printf '# Custom Skill\n' > "${skills_dir}/custom-skill/SKILL.md"
   setup_mock_docker "${case_dir}/mock-bin"
   setup_mock_curl "${case_dir}/mock-bin"
 
@@ -948,6 +951,8 @@ run_task_watch_case() {
     WORKER_IMAGE="hivemoot-agent:test" \
     AGENT_ID_01="worker" \
     AGENT_GITHUB_TOKEN_01="token-1" \
+    AGENT_SKILLS="custom-skill" \
+    AGENT_SKILLS_DIR="${skills_dir}" \
     AGENT_TIMEOUT_SECONDS="120" \
     PERIODIC_INTERVAL_SECS="60" \
     PERIODIC_JITTER_SECS="0" \
@@ -962,6 +967,9 @@ run_task_watch_case() {
   assert_file_contains "$run_log" "-e AGENT_TASK_MESSAGES_FILE=/workspace/task-input/task-claim-1/messages.json"
   assert_file_contains "$run_log" "-e AGENT_TASK_CLAIM_TOKEN=claim-token-1"
   assert_file_contains "$run_log" "-e AGENT_TASK_EXECUTE_BASE_URL=https://api.example.com/api/tasks"
+  assert_file_contains "$run_log" "-e AGENT_SKILLS=custom-skill"
+  assert_file_contains "$run_log" "-e AGENT_SKILLS_DIR=${skills_dir}"
+  assert_file_contains "$run_log" "-v ${skills_dir}:${skills_dir}:ro"
   assert_file_not_contains "$run_log" "-e RUN_MODE=once"
 
   curl_log="${case_dir}/curl-state/curl.log"
