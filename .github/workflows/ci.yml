@@ -100,18 +100,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check env vars documented in .env.example
-        run: |
-          set -euo pipefail
-          vars=$(grep -oP '\$\{\K[A-Z][A-Z0-9_]*' docker-compose.yml | sort -u)
-          fail=0
-          for var in $vars; do
-            if ! grep -qF "$var" .env.example; then
-              echo "::error::${var} is in docker-compose.yml but missing from .env.example"
-              fail=1
-            fi
-          done
-          [ "$fail" -eq 0 ] && echo "All compose variables documented in .env.example"
-          exit "$fail"
+        run: bash scripts/test-env-docs.sh
 
   markdownlint:
     name: Markdown Lint
